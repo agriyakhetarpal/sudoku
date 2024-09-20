@@ -69,6 +69,7 @@ WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 GRAY = (200, 200, 200)
 RED = (255, 0, 0)
+BLUE = (0, 0, 255)
 
 # Set up the display
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -142,6 +143,17 @@ def draw_grid(surface):
         pygame.draw.line(surface, BLACK, (0, i * CELL_SIZE), (WIDTH, i * CELL_SIZE), thickness)
         pygame.draw.line(surface, BLACK, (i * CELL_SIZE, 0), (i * CELL_SIZE, HEIGHT), thickness)
 
+def is_valid_move(grid, num, pos):
+    # Check if the number is already in the original grid
+    if grid[pos[0]][pos[1]] != 0:
+        return False
+    
+    # Create a temporary grid with the new number
+    temp_grid = [row[:] for row in grid]
+    temp_grid[pos[0]][pos[1]] = num
+    
+    return valid(temp_grid, num, pos)
+
 def draw_numbers(surface, grid, user_grid):
     for i in range(GRID_SIZE):
         for j in range(GRID_SIZE):
@@ -149,21 +161,9 @@ def draw_numbers(surface, grid, user_grid):
                 num = font.render(str(grid[i][j]), True, BLACK)
                 surface.blit(num, (j * CELL_SIZE + 15, i * CELL_SIZE + 10))
             elif user_grid[i][j] != 0:
-                num = font.render(str(user_grid[i][j]), True, RED)
+                color = BLUE if is_valid_move(grid, user_grid[i][j], (i, j)) else RED
+                num = font.render(str(user_grid[i][j]), True, color)
                 surface.blit(num, (j * CELL_SIZE + 15, i * CELL_SIZE + 10))
-
-def check_conflicts(grid, user_grid):
-    conflicts = []
-    for i in range(GRID_SIZE):
-        for j in range(GRID_SIZE):
-            if user_grid[i][j] != 0:
-                if not valid(grid, user_grid[i][j], (i, j)):
-                    conflicts.append((i, j))
-    return conflicts
-
-def highlight_conflicts(surface, conflicts):
-    for i, j in conflicts:
-        pygame.draw.rect(surface, RED, (j * CELL_SIZE, i * CELL_SIZE, CELL_SIZE, CELL_SIZE), 3)
 
 async def main():
     grid = generate_sudoku()
@@ -175,7 +175,6 @@ async def main():
     background = pygame.Surface((WIDTH, HEIGHT))
     background.fill(WHITE)
     draw_grid(background)
-    draw_numbers(background, grid, user_grid)
     
     # Create a separate surface for dynamic elements
     dynamic_surface = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
@@ -204,8 +203,6 @@ async def main():
             draw_numbers(dynamic_surface, grid, user_grid)
             if selected:
                 pygame.draw.rect(dynamic_surface, GRAY, (selected[1] * CELL_SIZE, selected[0] * CELL_SIZE, CELL_SIZE, CELL_SIZE), 3)
-            conflicts = check_conflicts(grid, user_grid)
-            highlight_conflicts(dynamic_surface, conflicts)
 
         # Blit the surfaces
         screen.blit(background, (0, 0))
