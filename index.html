@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pyodide Pygame Sudoku</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .demo {
+            background-color: #fff;
+            margin: 20px auto;
+            max-width: 600px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .demo-header {
+            background-color: #007bff;
+            color: #fff;
+            padding: 15px 20px;
+            font-size: 20px;
+        }
+        .demo-content {
+            padding: 20px;
+        }
+        #canvas {
+            margin: 0 auto;
+            display: block;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.27.0a2/full/pyodide.js"></script>
+</head>
+<body>
+    <div class="demo">
+        <div class="demo-header">Pyodide Pygame Sudoku</div>
+        <div class="demo-content">
+            <canvas id="canvas"></canvas>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        async function main() {
+            let pyodide = await loadPyodide();
+            await pyodide.loadPackage(["pygame-ce"], { checkIntegrity: false });
+
+            let canvas = document.getElementById("canvas");
+            pyodide.canvas.setCanvas2D(canvas);
+            
+            await pyodide.runPythonAsync(`
+import pygame
+import random
+import asyncio
+
+# Initialize pygame
+pygame.init()
+
+# Constants
+WIDTH, HEIGHT = 540, 540
+GRID_SIZE = 9
+CELL_SIZE = WIDTH // GRID_SIZE
+
+# Colors
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+GRAY = (200, 200, 200)
+RED = (255, 0, 0)
+
+# Set up the display
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Sudoku")
+
+# Font
+font = pygame.font.Font(None, 36)
+
+def valid(grid, num, pos):
+    # Check row
+    for i in range(len(grid[0])):
+        if grid[pos[0]][i] == num and pos[1] != i:
+            return False
+
+    # Check column
+    for i in range(len(grid)):
+        if grid[i][pos[1]] == num and pos[0] != i:
+            return False
+
+    # Check box
+    box_x = pos[1] // 3
+    box_y = pos[0] // 3
+
+    for i in range(box_y * 3, box_y * 3 + 3):
+        for j in range(box_x * 3, box_x * 3 + 3):
+            if grid[i][j] == num and (i, j) != pos:
+                return False
+
+    return True
+
+def generate_sudoku():
+    def solve(grid):
+        find = find_empty(grid)
+        if not find:
+            return True
+        else:
+            row, col = find
+
+        for i in range(1, 10):
+            if valid(grid, i, (row, col)):
+                grid[row][col] = i
+
+                if solve(grid):
+                    return True
+
+                grid[row][col] = 0
+
+        return False
+
+    def find_empty(grid):
+        for i in range(len(grid)):
+            for j in range(len(grid[0])):
+                if grid[i][j] == 0:
+                    return (i, j)
+        return None
+
+    grid = [[0 for _ in range(9)] for _ in range(9)]
+    solve(grid)
+
+    # Remove some numbers to create the puzzle
+    for _ in range(40):  # Adjust this number to change difficulty
+        row = random.randint(0, 8)
+        col = random.randint(0, 8)
+        grid[row][col] = 0
+
+    return grid
+
+def draw_grid(surface):
+    for i in range(GRID_SIZE + 1):
+        thickness = 3 if i % 3 == 0 else 1
+        pygame.draw.line(surface, BLACK, (0, i * CELL_SIZE), (WIDTH, i * CELL_SIZE), thickness)
+        pygame.draw.line(surface, BLACK, (i * CELL_SIZE, 0), (i * CELL_SIZE, HEIGHT), thickness)
+
+def draw_numbers(surface, grid, user_grid):
+    for i in range(GRID_SIZE):
+        for j in range(GRID_SIZE):
+            if grid[i][j] != 0:
+                num = font.render(str(grid[i][j]), True, BLACK)
+                surface.blit(num, (j * CELL_SIZE + 15, i * CELL_SIZE + 10))
+            elif user_grid[i][j] != 0:
+                num = font.render(str(user_grid[i][j]), True, RED)
+                surface.blit(num, (j * CELL_SIZE + 15, i * CELL_SIZE + 10))
+
+def check_conflicts(grid, user_grid):
+    conflicts = []
+    for i in range(GRID_SIZE):
+        for j in range(GRID_SIZE):
+            if user_grid[i][j] != 0:
+                if not valid(grid, user_grid[i][j], (i, j)):
+                    conflicts.append((i, j))
+    return conflicts
+
+def highlight_conflicts(surface, conflicts):
+    for i, j in conflicts:
+        pygame.draw.rect(surface, RED, (j * CELL_SIZE, i * CELL_SIZE, CELL_SIZE, CELL_SIZE), 3)
+
+async def main():
+    grid = generate_sudoku()
+    user_grid = [[0 for _ in range(9)] for _ in range(9)]
+    selected = None
+    running = True
+    
+    # Create a background surface
+    background = pygame.Surface((WIDTH, HEIGHT))
+    background.fill(WHITE)
+    draw_grid(background)
+    draw_numbers(background, grid, user_grid)
+    
+    # Create a separate surface for dynamic elements
+    dynamic_surface = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+    
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                pos = pygame.mouse.get_pos()
+                new_selected = (pos[1] // CELL_SIZE, pos[0] // CELL_SIZE)
+                if new_selected != selected:
+                    selected = new_selected
+                    dynamic_surface.fill((0, 0, 0, 0))  # Clear with transparent color
+            elif event.type == pygame.KEYDOWN:
+                if selected and grid[selected[0]][selected[1]] == 0:
+                    if event.unicode.isdigit() and event.unicode != '0':
+                        user_grid[selected[0]][selected[1]] = int(event.unicode)
+                        dynamic_surface.fill((0, 0, 0, 0))  # Clear with transparent color
+                    elif event.key == pygame.K_BACKSPACE or event.key == pygame.K_DELETE:
+                        user_grid[selected[0]][selected[1]] = 0
+                        dynamic_surface.fill((0, 0, 0, 0))  # Clear with transparent color
+
+        # Only redraw if there's a change
+        if dynamic_surface.get_at((0, 0)) == (0, 0, 0, 0):  # Check if surface is clear
+            draw_numbers(dynamic_surface, grid, user_grid)
+            if selected:
+                pygame.draw.rect(dynamic_surface, GRAY, (selected[1] * CELL_SIZE, selected[0] * CELL_SIZE, CELL_SIZE, CELL_SIZE), 3)
+            conflicts = check_conflicts(grid, user_grid)
+            highlight_conflicts(dynamic_surface, conflicts)
+
+        # Blit the surfaces
+        screen.blit(background, (0, 0))
+        screen.blit(dynamic_surface, (0, 0))
+        pygame.display.flip()
+
+        await asyncio.sleep(0.03)  # 30 FPS
+
+    pygame.quit()
+
+asyncio.ensure_future(main())
+            `)
+        }
+        
+        main()
+    </script>
+</body>
+</html>
