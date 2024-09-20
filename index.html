@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <title>Pyodide Pygame Sudoku</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&display=swap" rel="stylesheet">
     <style>
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'IBM Plex Mono', monospace;
             margin: 0;
             padding: 20px;
             background-color: #f4f4f4;
@@ -14,7 +15,7 @@
         .demo {
             background-color: #fff;
             margin: 20px auto;
-            max-width: 600px;
+            max-width: 800px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             border-radius: 8px;
             overflow: hidden;
@@ -37,7 +38,7 @@
 </head>
 <body>
     <div class="demo">
-        <div class="demo-header">Pyodide Pygame Sudoku</div>
+        <div class="demo-header">Pyodide Pygame Sudoku (PyCon India)</div>
         <div class="demo-content">
             <canvas id="canvas"></canvas>
         </div>
@@ -55,12 +56,14 @@
 import pygame
 import random
 import asyncio
+import os
+import js
 
 # Initialize pygame
 pygame.init()
 
 # Constants
-WIDTH, HEIGHT = 540, 540
+WIDTH, HEIGHT = 720, 720
 GRID_SIZE = 9
 CELL_SIZE = WIDTH // GRID_SIZE
 
@@ -76,7 +79,9 @@ screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Sudoku")
 
 # Font
-font = pygame.font.Font(None, 36)
+font_url = 'https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&display=swap'
+js.document.fonts.load("36px 'IBM Plex Mono'").then(lambda _: None)
+font = pygame.font.SysFont('IBM Plex Mono', 36)
 
 def valid(grid, num, pos):
     # Check row
@@ -159,11 +164,13 @@ def draw_numbers(surface, grid, user_grid):
         for j in range(GRID_SIZE):
             if grid[i][j] != 0:
                 num = font.render(str(grid[i][j]), True, BLACK)
-                surface.blit(num, (j * CELL_SIZE + 15, i * CELL_SIZE + 10))
+                num_rect = num.get_rect(center=(j * CELL_SIZE + CELL_SIZE // 2, i * CELL_SIZE + CELL_SIZE // 2))
+                surface.blit(num, num_rect)
             elif user_grid[i][j] != 0:
                 color = BLUE if is_valid_move(grid, user_grid[i][j], (i, j)) else RED
                 num = font.render(str(user_grid[i][j]), True, color)
-                surface.blit(num, (j * CELL_SIZE + 15, i * CELL_SIZE + 10))
+                num_rect = num.get_rect(center=(j * CELL_SIZE + CELL_SIZE // 2, i * CELL_SIZE + CELL_SIZE // 2))
+                surface.blit(num, num_rect)
 
 async def main():
     grid = generate_sudoku()
@@ -216,7 +223,7 @@ async def main():
 asyncio.ensure_future(main())
             `)
         }
-        
+
         main()
     </script>
 </body>
