@@ -1,0 +1,26 @@
+name: Publish docs to GitHub Pages
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-docs:
+    name: Build and deploy docs
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+    - name: Upload docs
+      uses: actions/upload-artifact@v4
+      with:
+        name: documentation_artifact
+        path: index.html
+
+    - name: Deploy docs to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./game/
+        user_name: agriyakhetarpal
+        user_email: "74401230+agriyakhetarpal@users.noreply.github.com"
