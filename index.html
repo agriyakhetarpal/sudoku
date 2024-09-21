@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <title>Pyodide Pygame Sudoku</title>
+    <title>Pyodide + Pygame + Sudoku</title>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&display=swap" rel="stylesheet">
     <style>
         body {
@@ -12,23 +13,27 @@
             background-color: #f4f4f4;
             color: #333;
         }
+
         .demo {
             background-color: #fff;
             margin: 20px auto;
             max-width: 800px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             border-radius: 8px;
             overflow: hidden;
         }
+
         .demo-header {
             background-color: #007bff;
             color: #fff;
             padding: 15px 20px;
             font-size: 20px;
         }
+
         .demo-content {
             padding: 20px;
         }
+
         #canvas {
             margin: 0 auto;
             display: block;
@@ -36,9 +41,10 @@
     </style>
     <script src="https://cdn.jsdelivr.net/pyodide/v0.27.0a2/full/pyodide.js"></script>
 </head>
+
 <body>
     <div class="demo">
-        <div class="demo-header">Pyodide Pygame Sudoku (PyCon India)</div>
+        <div class="demo-header">Sudoku (hi there, PyCon India!)</div>
         <div class="demo-content">
             <canvas id="canvas"></canvas>
         </div>
@@ -51,7 +57,7 @@
 
             let canvas = document.getElementById("canvas");
             pyodide.canvas.setCanvas2D(canvas);
-            
+
             await pyodide.runPythonAsync(`
 import pygame
 import random
@@ -177,15 +183,15 @@ async def main():
     user_grid = [[0 for _ in range(9)] for _ in range(9)]
     selected = None
     running = True
-    
+
     # Create a background surface
     background = pygame.Surface((WIDTH, HEIGHT))
     background.fill(WHITE)
     draw_grid(background)
-    
+
     # Create a separate surface for dynamic elements
     dynamic_surface = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-    
+
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -227,4 +233,5 @@ asyncio.ensure_future(main())
         main()
     </script>
 </body>
+
 </html>
