@@ -32,11 +32,26 @@
 
         .demo-content {
             padding: 20px;
+            text-align: center;
         }
 
         #canvas {
             margin: 0 auto;
             display: block;
+        }
+
+        .button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .button:hover {
+            background-color: #0056b3;
         }
     </style>
     <script src="https://cdn.jsdelivr.net/pyodide/v0.27.0a2/full/pyodide.js"></script>
@@ -47,6 +62,10 @@
         <div class="demo-header">Sudoku</div>
         <div class="demo-content">
             <canvas id="canvas"></canvas>
+            <div>
+                <button id="undoButton" class="button">Undo</button>
+                <button id="redoButton" class="button">Redo</button>
+            </div>
         </div>
     </div>
 
@@ -58,12 +77,22 @@
             let canvas = document.getElementById("canvas");
             pyodide.canvas.setCanvas2D(canvas);
 
+            // Add event listeners for undo/redo buttons
+            document.getElementById("undoButton").addEventListener("click", () => {
+                pyodide.runPython("handle_undo()");
+            });
+            document.getElementById("redoButton").addEventListener("click", () => {
+                pyodide.runPython("handle_redo()");
+            });
+
             await pyodide.runPythonAsync(`
 import pygame
 import random
 import asyncio
 import os
 import js
+from collections import deque
+import copy
 
 # Initialize pygame
 pygame.init()
@@ -89,6 +118,36 @@ font_url = 'https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&display=swap'
 js.document.fonts.load("36px 'IBM Plex Mono'").then(lambda _: None)
 font = pygame.font.SysFont('IBM Plex Mono', 36)
 
+# Undo/Redo stacks
+undo_stack = deque()
+redo_stack = deque()
+
+def push_state(grid):
+    undo_stack.append(copy.deepcopy(grid))
+    redo_stack.clear()  # Clear redo stack when new move is made
+
+def handle_undo():
+    global user_grid
+    if len(undo_stack) > 0:
+        redo_stack.append(copy.deepcopy(user_grid))
+        user_grid = undo_stack.pop()
+        redraw_required()
+
+def handle_redo():
+    global user_grid
+    if len(redo_stack) > 0:
+        undo_stack.append(copy.deepcopy(user_grid))
+        user_grid = redo_stack.pop()
+        redraw_required()
+
+def count_numbers_in_box(grid, box_row, box_col):
+    count = 0
+    for i in range(box_row * 3, (box_row + 1) * 3):
+        for j in range(box_col * 3, (box_col + 1) * 3):
+            if grid[i][j] != 0:
+                count += 1
+    return count
+
 def valid(grid, num, pos):
     # Check row
     for i in range(len(grid[0])):
@@ -111,6 +170,8 @@ def valid(grid, num, pos):
 
     return True
 
+
+
 def generate_sudoku():
     def solve(grid):
         find = find_empty(grid)
@@ -119,7 +180,11 @@ def generate_sudoku():
         else:
             row, col = find
 
-        for i in range(1, 10):
+        # Shuffle numbers to ensure different solutions
+        numbers = list(range(1, 10))
+        random.shuffle(numbers)
+
+        for i in numbers:
             if valid(grid, i, (row, col)):
                 grid[row][col] = i
 
@@ -137,16 +202,52 @@ def generate_sudoku():
                     return (i, j)
         return None
 
-    grid = [[0 for _ in range(9)] for _ in range(9)]
-    solve(grid)
+    def ensure_balanced_difficulty():
+        grid = [[0 for _ in range(9)] for _ in range(9)]
+        solve(grid)  # Generate a complete solution
 
-    # Remove some numbers to create the puzzle
-    for _ in range(40):  # Adjust this number to change difficulty
-        row = random.randint(0, 8)
-        col = random.randint(0, 8)
-        grid[row][col] = 0
+        # Create a list of all positions
+        positions = [(i, j) for i in range(9) for j in range(9)]
+        random.shuffle(positions)
 
-    return grid
+        # Remove numbers while maintaining balance
+        for pos in positions:
+            box_row, box_col = pos[0] // 3, pos[1] // 3
+            if count_numbers_in_box(grid, box_row, box_col) > 5:  # Ensure at least 5 numbers per box
+                temp = grid[pos[0]][pos[1]]
+                grid[pos[0]][pos[1]] = 0
+
+                # Check if removing this number still leaves the puzzle solvable
+                # and doesn't make any box too empty
+                if not is_uniquely_solvable(copy.deepcopy(grid)):
+                    grid[pos[0]][pos[1]] = temp
+
+        return grid
+
+    def is_uniquely_solvable(grid):
+        solutions = []
+
+        def solve_all(g):
+            if len(solutions) > 1:  # Stop if we found multiple solutions
+                return
+
+
+            find = find_empty(g)
+            if not find:
+                solutions.append(copy.deepcopy(g))
+                return
+
+            row, col = find
+            for i in range(1, 10):
+                if valid(g, i, (row, col)):
+                    g[row][col] = i
+                    solve_all(g)
+                    g[row][col] = 0
+
+        solve_all(grid)
+        return len(solutions) == 1
+
+    return ensure_balanced_difficulty()
 
 def draw_grid(surface):
     for i in range(GRID_SIZE + 1):
@@ -155,14 +256,12 @@ def draw_grid(surface):
         pygame.draw.line(surface, BLACK, (i * CELL_SIZE, 0), (i * CELL_SIZE, HEIGHT), thickness)
 
 def is_valid_move(grid, num, pos):
-    # Check if the number is already in the original grid
     if grid[pos[0]][pos[1]] != 0:
         return False
-    
-    # Create a temporary grid with the new number
+
     temp_grid = [row[:] for row in grid]
     temp_grid[pos[0]][pos[1]] = num
-    
+
     return valid(temp_grid, num, pos)
 
 def draw_numbers(surface, grid, user_grid):
@@ -178,7 +277,12 @@ def draw_numbers(surface, grid, user_grid):
                 num_rect = num.get_rect(center=(j * CELL_SIZE + CELL_SIZE // 2, i * CELL_SIZE + CELL_SIZE // 2))
                 surface.blit(num, num_rect)
 
+def redraw_required():
+    global dynamic_surface
+    dynamic_surface.fill((0, 0, 0, 0))
+
 async def main():
+    global user_grid, dynamic_surface
     grid = generate_sudoku()
     user_grid = [[0 for _ in range(9)] for _ in range(9)]
     selected = None
@@ -201,23 +305,25 @@ async def main():
                 new_selected = (pos[1] // CELL_SIZE, pos[0] // CELL_SIZE)
                 if new_selected != selected:
                     selected = new_selected
-                    dynamic_surface.fill((0, 0, 0, 0))  # Clear with transparent color
+                    redraw_required()
             elif event.type == pygame.KEYDOWN:
                 if selected and grid[selected[0]][selected[1]] == 0:
+                    old_value = user_grid[selected[0]][selected[1]]
                     if event.unicode.isdigit() and event.unicode != '0':
+                        push_state(copy.deepcopy(user_grid))
                         user_grid[selected[0]][selected[1]] = int(event.unicode)
-                        dynamic_surface.fill((0, 0, 0, 0))  # Clear with transparent color
+                        redraw_required()
                     elif event.key == pygame.K_BACKSPACE or event.key == pygame.K_DELETE:
+                        if old_value != 0:  # Only push state if there was a value
+                            push_state(copy.deepcopy(user_grid))
                         user_grid[selected[0]][selected[1]] = 0
-                        dynamic_surface.fill((0, 0, 0, 0))  # Clear with transparent color
+                        redraw_required()
 
-        # Only redraw if there's a change
-        if dynamic_surface.get_at((0, 0)) == (0, 0, 0, 0):  # Check if surface is clear
+        if dynamic_surface.get_at((0, 0)) == (0, 0, 0, 0):
             draw_numbers(dynamic_surface, grid, user_grid)
             if selected:
                 pygame.draw.rect(dynamic_surface, GRAY, (selected[1] * CELL_SIZE, selected[0] * CELL_SIZE, CELL_SIZE, CELL_SIZE), 3)
 
-        # Blit the surfaces
         screen.blit(background, (0, 0))
         screen.blit(dynamic_surface, (0, 0))
         pygame.display.flip()
